@@ -1,5 +1,7 @@
 'use strict';
 
+
+
 const express     = require('express');
 const session     = require('express-session');
 const bodyParser  = require('body-parser');
@@ -15,13 +17,14 @@ const sessionStore= new session.MemoryStore();
 const io          = require('socket.io')(http);
 
 
-fccTesting(app); //For FCC testing purposes
-
 app.use('/public', express.static(process.cwd() + '/public'));
 app.use(cookieParser());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
 app.set('view engine', 'pug')
+
+fccTesting(app); //For FCC testing purposes
 
 app.use(session({
   secret: process.env.SESSION_SECRET,
@@ -32,17 +35,23 @@ app.use(session({
 }));
 
 
-mongo.connect(process.env.DATABASE, { useNewUrlParser: true }, (err, db) => {
-    if(err) console.log('Database error: ' + err);
+mongo.connect(process.env.DATABASE, { useNewUrlParser: true }, (err, client) => {
   
+    // This is new for mongo, so it is different in the fcc challenge
+    var db = client.db('six-socket');  
+  
+    if(err) console.log('Database error: ' + err);
+
     auth(app, db);
     routes(app, db);
       
-    http.listen(process.env.PORT || 3000);
+    http.listen(process.env.PORT || 3000, () => console.log("ALL GOOD?"));
 
   
     //start socket.io code  
-    io.on('connection', socket => { console.log('A user has connected'); });
+    io.on('connection', socket => { 
+      console.log('A user has connected'); 
+    });
   
 
     //end socket.io code
