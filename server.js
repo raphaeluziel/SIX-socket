@@ -1,18 +1,19 @@
 'use strict';
 
-const express     = require('express');
-const session     = require('express-session');
-const bodyParser  = require('body-parser');
-const fccTesting  = require('./freeCodeCamp/fcctesting.js');
-const auth        = require('./app/auth.js');
-const routes      = require('./app/routes.js');
-const mongo       = require('mongodb').MongoClient;
-const passport    = require('passport');
-const cookieParser= require('cookie-parser')
-const app         = express();
-const http        = require('http').Server(app);
-const sessionStore= new session.MemoryStore(); 
-const io = require('socket.io')(http);
+const express           = require('express');
+const session           = require('express-session');
+const bodyParser        = require('body-parser');
+const fccTesting        = require('./freeCodeCamp/fcctesting.js');
+const auth              = require('./app/auth.js');
+const routes            = require('./app/routes.js');
+const mongo             = require('mongodb').MongoClient;
+const passport          = require('passport');
+const cookieParser      = require('cookie-parser')
+const app               = express();
+const http              = require('http').Server(app);
+const sessionStore      = new session.MemoryStore(); 
+const io                = require('socket.io')(http);
+const passportSocketIo  = require('passport.socketio');
 
 
 fccTesting(app); //For FCC testing purposes
@@ -42,13 +43,33 @@ mongo.connect(process.env.DATABASE, { useNewUrlParser: true }, (err, client) => 
   
   http.listen(process.env.PORT || 3000, () => console.log("ALL SEEMS OK"));
   
+  io.use(passportSocketIo.authorize({
+    cookieParser: cookieParser,
+    key:          'express.sid',
+    secret:       process.env.SESSION_SECRET,
+    store:        sessionStore
+  }));
+  
   var currentUsers = 0;
   
   io.on('connection', socket => {
+    //console.log("SOCK", socket.request);
     console.log('A user has connected');
-    ++currentUsers;
-    io.emit('user count', currentUsers);
+    currentUsers++;
+    io.emit('user', {name: socket.request.user.name, currentUsers, connected: true});
+    
+    socket.on('chat message', (message) => { 
+      io.emit('chat message', {name: socket.request.user.name, message});
+    });
+    
+    
+    socket.on('disconnect', () => { 
+      currentUsers--; 
+      io.emit('user', {name: socket.request.user.name, currentUsers, connected: false});
+    });
+    
+    console.log('user ' + socket.request.user.name + ' connected');
   });
   
-
+  
 });
