@@ -41,30 +41,48 @@ mongo.connect(process.env.DATABASE, { useNewUrlParser: true }, (err, client) => 
   auth(app, db);
   routes(app, db);
   
-  http.listen(process.env.PORT || 3000, () => console.log("ALL SEEMS OK"));
+  http.listen(process.env.PORT || 3000, () => console.log("Listening..."));
   
   io.use(passportSocketIo.authorize({
     cookieParser: cookieParser,
     key:          'express.sid',
     secret:       process.env.SESSION_SECRET,
-    store:        sessionStore
+    store:        sessionStore,
+    success:      onAuthorizeSuccess,
+    fail:         onAuthorizeFail
   }));
+  
+  
+  function onAuthorizeSuccess(data, accept){
+    console.log('successful connection to socket.io');
+    accept(null, true);
+  }
+  
+  function onAuthorizeFail(data, message, error, accept){
+    console.log('failed connection to socket.io');
+    if (error) throw new Error(message);
+    accept(null, false);
+  }
+  
   
   var currentUsers = 0;
   
+  // Listen for a user connecting, and authenticate user with Socket.io
   io.on('connection', socket => {
-    //console.log("SOCK", socket.request);
     console.log('A user has connected');
-    currentUsers++;
+    currentUsers++;  // Counts how many users (sockets) are using chat service
+    // Emit to all users the following information:
+    // names, number of users and whether connected 
     io.emit('user', {name: socket.request.user.name, currentUsers, connected: true});
     
+    // Emit to all users the chat a user has sent
     socket.on('chat message', (message) => { 
       io.emit('chat message', {name: socket.request.user.name, message});
     });
     
-    
+    // When user disconnects emit that info to all users in chat room
     socket.on('disconnect', () => { 
-      currentUsers--; 
+      currentUsers--; // number of users has decrfeased
       io.emit('user', {name: socket.request.user.name, currentUsers, connected: false});
     });
     
